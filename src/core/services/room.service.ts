@@ -1,9 +1,6 @@
-import {
-  RoomRepository,
-  RoomMetadata,
-  PlaybackState,
-} from "../repositories/room.repo";
 import { v4 as uuidv4 } from "uuid";
+import { RoomRepository } from "../repositories/room.repo";
+import { PlaybackState, RoomMetadata } from "../domain/room.types";
 
 export class RoomService {
   constructor(private roomRepo: RoomRepository) {}

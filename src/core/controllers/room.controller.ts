@@ -1,62 +1,148 @@
+import Elysia, { t } from "elysia";
+import jwt from "@elysiajs/jwt";
 import { RoomRepository } from "../repositories/room.repo";
 import { RoomService } from "../services/room.service";
+import type { WsIncomingMessage } from "../domain/ws.types";
 
-export class RoomController {
-  private roomRepo: RoomRepository;
-  private roomService: RoomService;
+const roomRepo = new RoomRepository();
+const roomService = new RoomService(roomRepo);
 
-  constructor() {
-    this.roomRepo = new RoomRepository();
-    this.roomService = new RoomService(this.roomRepo);
-  }
+export const RoomController = new Elysia({ prefix: "/rooms" })
+  .use(
+    jwt({
+      name: "jwt",
+      secret: process.env.JWT_SECRET!,
+    }),
+  )
 
-  async createRoom(
-    body: {
-      name: string;
-      isPublic?: boolean;
-      maxParticipants?: number;
+  .get("/", async () => {
+    return roomService.listActiveRooms();
+  })
+
+  .post(
+    "/",
+    async ({ body, headers, jwt }) => {
+      const token = headers.authorization?.replace("Bearer ", "");
+      if (!token) throw new Error("Token not provided");
+
+      const payload = await jwt.verify(token);
+      if (!payload) throw new Error("Invalid token");
+
+      return roomService.createRoom(
+        payload.sub as string,
+        body.name,
+        body.isPublic,
+        body.maxParticipants,
+      );
     },
-    userId: string,
-  ) {
-    return this.roomService.createRoom(
-      userId,
-      body.name,
-      body.isPublic,
-      body.maxParticipants,
-    );
-  }
-
-  async getRoomDetails(roomId: string) {
-    return this.roomService.getRoomDetails(roomId);
-  }
-
-  async joinRoom(roomId: string, userId: string) {
-    return this.roomService.joinRoom(roomId, userId);
-  }
-
-  async leaveRoom(roomId: string, userId: string) {
-    return this.roomService.leaveRoom(roomId, userId);
-  }
-
-  async updatePlayback(
-    roomId: string,
-    userId: string,
-    body: {
-      mediaUrl?: string;
-      mediaType?: string;
-      isPlaying?: boolean;
-      currentTime?: number;
-      playbackSpeed?: number;
+    {
+      body: t.Object({
+        name: t.String({ minLength: 3 }),
+        isPublic: t.Optional(t.Boolean()),
+        maxParticipants: t.Optional(t.Number({ minimum: 2, maximum: 50 })),
+      }),
     },
-  ) {
-    return this.roomService.updatePlayback(roomId, userId, body);
-  }
+  )
 
-  async getPlaybackState(roomId: string) {
-    return this.roomService.getPlaybackState(roomId);
-  }
+  .get("/:roomId", async ({ params }) => {
+    return roomService.getRoomDetails(params.roomId);
+  })
 
-  async listActiveRooms() {
-    return this.roomService.listActiveRooms();
-  }
-}
+  .ws("/:roomId/ws", {
+    body: t.Object({
+      type: t.String(),
+      payload: t.Optional(t.Any()),
+    }),
+
+    query: t.Object({
+      token: t.String(),
+    }),
+
+    async open(ws) {
+      const { roomId } = ws.data.params;
+      const { token } = ws.data.query;
+
+      const payload = await ws.data.jwt.verify(token);
+      if (!payload) {
+        ws.send({ type: "ERROR", payload: "Invalid Token" });
+        ws.close();
+        return;
+      }
+      const userId = payload.sub as string;
+
+      try {
+        await roomService.joinRoom(roomId, userId);
+        ws.subscribe(roomId);
+
+        const memberCount = roomRepo.getMemberCount(roomId);
+        ws.publish(roomId, {
+          type: "USER_JOINED",
+          payload: { userId, memberCount },
+        });
+
+        console.log(`WS: User ${userId} joined room ${roomId}`);
+      } catch (e) {
+        ws.send({ type: "ERROR", payload: "Failed to join room" });
+        ws.close();
+
+        console.log(`WS: User ${userId} failed to join room ${roomId}. ${e}`);
+      }
+    },
+
+    async message(ws, message: WsIncomingMessage) {
+      const { roomId } = ws.data.params;
+      const { token } = ws.data.query;
+
+      const payload = await ws.data.jwt.verify(token);
+      if (!payload) return;
+      const userId = payload.sub as string;
+
+      switch (message.type) {
+        case "UPDATE_PLAYBACK":
+          try {
+            const newState = await roomService.updatePlayback(
+              roomId,
+              userId,
+              message.payload,
+            );
+
+            ws.publish(roomId, {
+              type: "PLAYBACK_UPDATED",
+              payload: newState,
+            });
+          } catch (error) {
+            ws.send({ type: "ERROR", payload: "Failed to update playback" });
+          }
+          break;
+
+        case "SYNC_REQUEST":
+          const details = await roomService.getRoomDetails(roomId);
+          ws.send({
+            type: "SYNC_FULL_STATE",
+            payload: details,
+          });
+          break;
+      }
+    },
+
+    async close(ws) {
+      const { roomId } = ws.data.params;
+      const { token } = ws.data.query;
+
+      const payload = await ws.data.jwt.verify(token);
+      if (payload) {
+        const userId = payload.sub as string;
+
+        await roomService.leaveRoom(roomId, userId);
+        ws.unsubscribe(roomId);
+
+        const memberCount = await roomRepo.getMemberCount(roomId);
+        ws.publish(roomId, {
+          type: "USER_LEFT",
+          payload: { userId, memberCount },
+        });
+
+        console.log(`WS: User ${userId} left room ${roomId}`);
+      }
+    },
+  });

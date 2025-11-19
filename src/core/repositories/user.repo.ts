@@ -1,13 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "../../infra/database/postgres.config";
 import { usersTable } from "../../infra/database/schema";
-
-type User = {
-  id: string;
-  username: string;
-  email: string;
-  password: string;
-};
+import { User } from "../domain/user.types";
 
 export class UserRepository {
   async create(data: {
