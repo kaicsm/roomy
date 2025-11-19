@@ -35,25 +35,24 @@ export class RoomRepository {
   }
 
   async addMember(roomId: string, userId: string): Promise<void> {
-    await redis.sAdd(`room:${roomId}:members`, userId);
+    await redis.rPush(`room:${roomId}:members`, userId);
   }
 
   async removeMember(roomId: string, userId: string): Promise<void> {
-    await redis.sRem(`room:${roomId}:members`, userId);
+    await redis.lRem(`room:${roomId}:members`, 0, userId);
   }
 
   async getMembers(roomId: string): Promise<string[]> {
-    return await redis.sMembers(`room:${roomId}:members`);
+    return await redis.lRange(`room:${roomId}:members`, 0, -1);
   }
 
   async getMemberCount(roomId: string): Promise<number> {
-    return await redis.sCard(`room:${roomId}:members`);
+    return await redis.lLen(`room:${roomId}:members`);
   }
 
   async isMember(roomId: string, userId: string): Promise<boolean> {
-    return (await redis.sIsMember(`room:${roomId}:members`, userId))
-      ? true
-      : false;
+    const members = await this.getMembers(roomId);
+    return members.includes(userId);
   }
 
   async createPlaybackState(
@@ -128,5 +127,20 @@ export class RoomRepository {
     await redis.del(`room:${roomId}:members`);
     await this.deletePlaybackState(roomId);
     await this.deleteConnections(roomId);
+  }
+
+  async updateHost(roomId: string, newHostId: string): Promise<void> {
+    const metadata = await this.getMetadata(roomId);
+    if (!metadata) {
+      throw new Error("Room not found");
+    }
+
+    await redis.hSet(`room:${roomId}:metadata`, {
+      name: metadata.name,
+      hostId: newHostId,
+      isPublic: String(metadata.isPublic),
+      maxParticipants: String(metadata.maxParticipants),
+      createdAt: metadata.createdAt,
+    });
   }
 }

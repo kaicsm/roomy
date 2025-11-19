@@ -6,7 +6,13 @@ import { AuthService } from "../services/auth.service";
 const userRepo = new UserRepository();
 const authService = new AuthService(userRepo);
 
-export const AuthController = new Elysia({ prefix: "/auth" })
+export const AuthController = new Elysia({
+  prefix: "/auth",
+  cookie: {
+    secrets: process.env.COOKIE_SECRET!,
+    sign: ["session"],
+  },
+})
   .use(
     jwt({
       name: "jwt",
@@ -15,9 +21,18 @@ export const AuthController = new Elysia({ prefix: "/auth" })
   )
   .post(
     "/login",
-    async ({ body, jwt }) => {
+    async ({ body, jwt, cookie: { session } }) => {
       const user = await authService.login(body);
       const token = await jwt.sign({ sub: user.id, email: user.email });
+
+      session.value = token;
+      session.set({
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+
       return { user, token };
     },
     {
@@ -33,9 +48,18 @@ export const AuthController = new Elysia({ prefix: "/auth" })
   )
   .post(
     "/register",
-    async ({ body, jwt }) => {
+    async ({ body, jwt, cookie: { session } }) => {
       const user = await authService.register(body);
       const token = await jwt.sign({ sub: user.id, email: user.email });
+
+      session.value = token;
+      session.set({
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        maxAge: 60 * 60 * 24 * 7, // 7 days
+      });
+
       return { user, token };
     },
     {

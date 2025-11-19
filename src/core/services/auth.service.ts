@@ -1,4 +1,5 @@
 import { UserRepository } from "../repositories/user.repo";
+import { SafeUser } from "../domain/user.types";
 
 export class AuthService {
   private cost = 10;
@@ -13,7 +14,7 @@ export class AuthService {
     username: string;
     password: string;
     email: string;
-  }) {
+  }): Promise<SafeUser> {
     const usernameExists = await this.userRepo.findByUsername(username);
     const emailExists = await this.userRepo.findByEmail(email);
 
@@ -35,10 +36,16 @@ export class AuthService {
     });
 
     const { password: _, ...safeUser } = user;
-    return safeUser;
+    return safeUser as SafeUser;
   }
 
-  async login({ username, password }: { username: string; password: string }) {
+  async login({
+    username,
+    password,
+  }: {
+    username: string;
+    password: string;
+  }): Promise<SafeUser> {
     const user = await this.userRepo.findByUsername(username);
     if (!user) throw new Error("Invalid credentials");
 
@@ -46,6 +53,6 @@ export class AuthService {
     if (!isValid) throw new Error("Invalid credentials");
 
     const { password: _, ...safeUser } = user;
-    return safeUser;
+    return safeUser as SafeUser;
   }
 }

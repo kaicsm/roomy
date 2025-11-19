@@ -7,7 +7,13 @@ import type { WsIncomingMessage } from "../domain/ws.types";
 const roomRepo = new RoomRepository();
 const roomService = new RoomService(roomRepo);
 
-export const RoomController = new Elysia({ prefix: "/rooms" })
+export const RoomController = new Elysia({ 
+  prefix: "/rooms",
+  cookie: {
+    secrets: process.env.COOKIE_SECRET!,
+    sign: ["session"],
+  },
+ })
   .use(
     jwt({
       name: "jwt",
@@ -21,8 +27,12 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .post(
     "/",
-    async ({ body, headers, jwt }) => {
-      const token = headers.authorization?.replace("Bearer ", "");
+    async ({ body, headers, jwt, cookie: { session } }) => {
+      let token = headers.authorization?.replace("Bearer ", "");
+      if (!token && session?.value) {
+        token = session.value as string;
+      }
+
       if (!token) throw new Error("Token not provided");
 
       const payload = await jwt.verify(token);
@@ -71,10 +81,14 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
       const userId = payload.sub as string;
 
       try {
-        await roomService.joinRoom(roomId, userId);
+        const isMember = await roomRepo.isMember(roomId, userId);
+        if (!isMember) {
+          await roomService.joinRoom(roomId, userId);
+        }
+        
         ws.subscribe(roomId);
 
-        const memberCount = roomRepo.getMemberCount(roomId);
+        const memberCount = await roomRepo.getMemberCount(roomId);
         ws.publish(roomId, {
           type: "USER_JOINED",
           payload: { userId, memberCount },
@@ -128,11 +142,11 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
     async close(ws) {
       const { roomId } = ws.data.params;
       const { token } = ws.data.query;
-
       const payload = await ws.data.jwt.verify(token);
-      if (payload) {
-        const userId = payload.sub as string;
+      if (!payload) return;
+      const userId = payload.sub as string;
 
+      if (userId) {
         await roomService.leaveRoom(roomId, userId);
         ws.unsubscribe(roomId);
 
@@ -142,7 +156,16 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
           payload: { userId, memberCount },
         });
 
-        console.log(`WS: User ${userId} left room ${roomId}`);
+        // Host migration logic
+        const room = await roomRepo.getMetadata(roomId);
+        
+        if (room && room.hostId === userId) {
+          const members = await roomRepo.getMembers(roomId);
+          
+          if (members.length > 0) {
+            await roomRepo.updateHost(roomId, members[0]);
+          }
+        }
       }
     },
   });

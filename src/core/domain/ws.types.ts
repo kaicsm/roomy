@@ -9,4 +9,5 @@ export type WsOutgoingMessage =
   | { type: "PLAYBACK_UPDATED"; payload: any }
   | { type: "USER_JOINED"; payload: { userId: string; memberCount: number } }
   | { type: "USER_LEFT"; payload: { userId: string; memberCount: number } }
+  | { type: "SYNC_FULL_STATE"; payload: any }
   | { type: "ERROR"; payload: string };
