@@ -1,7 +1,19 @@
-import { Elysia } from "elysia";
+import { config } from "dotenv";
+import Elysia from "elysia";
+import { authRoute } from "./routes/auth.route";
+import openapi from "@elysiajs/openapi";
+import { roomRoute } from "./routes/room.route";
+import { connectRedis } from "./infra/cache/redis.config";
 
-const app = new Elysia().get("/", () => "Hello Elysia").listen(3000);
+config();
 
-console.log(
-  `🦊 Elysia is running at ${app.server?.hostname}:${app.server?.port}`
-);
+const PORT = process.env.PORT!;
+
+await connectRedis();
+
+const app = new Elysia({ prefix: "/api" })
+  .use(openapi())
+  .group("/v1", (group) => group.use(authRoute).use(roomRoute))
+  .listen(PORT, () => {
+    console.log(`Server is running on http://localhost:${PORT}/api`);
+  });
