@@ -4,6 +4,7 @@ import openapi from "@elysiajs/openapi";
 import { AuthController } from "./core/controllers/auth.controller";
 import { RoomController } from "./core/controllers/room.controller";
 import { UserController } from "./core/controllers/user.controller";
+import cors from "@elysiajs/cors";
 import { redis } from "./infra/cache/redis.config";
 
 config();
@@ -32,6 +33,7 @@ const PORT = process.env.PORT!;
 await redis.connect();
 
 new Elysia({ prefix: "/api" })
+  .use(cors())
   .use(
     openapi({
       documentation: {
@@ -48,3 +50,5 @@ new Elysia({ prefix: "/api" })
   .listen(PORT, () => {
     console.log(`Server is running on http://localhost:${PORT}/api`);
   });
+
+redis.close();

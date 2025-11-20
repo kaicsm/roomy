@@ -1,7 +1,11 @@
 import Elysia, { t } from "elysia";
 import { RoomRepository } from "../repositories/room.repo";
 import { RoomService } from "../services/room.service";
-import type { WsIncomingMessage } from "../domain/ws.types";
+import {
+  WsIncomingMessage,
+  WsIncomingMessageType,
+  WsOutgoingMessageType,
+} from "../domain/ws.types";
 import { authMiddleware } from "../middlewares/auth.middleware";
 
 const roomRepo = new RoomRepository();
@@ -22,7 +26,13 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .post(
     "/",
-    async ({ body, payload }) => {
+    async ({
+      body,
+      payload,
+    }: {
+      body: { name: string; isPublic?: boolean; maxParticipants?: number };
+      payload: { sub: string };
+    }) => {
       return roomService.createRoom(
         payload.sub,
         body.name,
@@ -42,7 +52,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .get(
     "/:roomId",
-    async ({ params }) => {
+    async ({ params }: { params: { roomId: string } }) => {
       return roomService.getRoomDetails(params.roomId);
     },
     {
@@ -52,7 +62,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .ws("/:roomId/ws", {
     body: t.Object({
-      type: t.String(),
+      type: t.Enum(WsIncomingMessageType),
       payload: t.Optional(t.Any()),
     }),
 
@@ -60,27 +70,22 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
     async open(ws) {
       const { roomId } = ws.data.params;
-      const payload = ws.data.payload;
-
-      const userId = payload.sub;
+      const userId = ws.data.payload.sub;
 
       try {
-        const isMember = await roomRepo.isMember(roomId, userId);
-        if (!isMember) {
-          await roomService.joinRoom(roomId, userId);
-        }
+        const { welcomeMessage, broadcastMessage } =
+          await roomService.handleUserConnection(roomId, userId, ws.id);
 
         ws.subscribe(roomId);
 
-        const memberCount = await roomRepo.getMemberCount(roomId);
-        ws.publish(roomId, {
-          type: "USER_JOINED",
-          payload: { userId, memberCount },
-        });
+        ws.send(welcomeMessage);
 
-        console.log(`WS: User ${userId} joined room ${roomId}`);
-      } catch (e) {
-        ws.send({ type: "ERROR", payload: "Failed to join room" });
+        ws.publish(roomId, broadcastMessage);
+      } catch (e: any) {
+        ws.send({
+          type: WsOutgoingMessageType.Error,
+          payload: e.message || "Failed to join room",
+        });
         ws.close();
 
         console.log(`WS: User ${userId} failed to join room ${roomId}. ${e}`);
@@ -89,64 +94,53 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
     async message(ws, message: WsIncomingMessage) {
       const { roomId } = ws.data.params;
-      const payload = ws.data.payload;
+      const userId = ws.data.payload.sub;
 
-      const userId = payload.sub;
+      try {
+        const result = await roomService.handleUserMessage(
+          roomId,
+          userId,
+          message,
+        );
 
-      switch (message.type) {
-        case "UPDATE_PLAYBACK":
-          try {
-            const newState = await roomService.updatePlayback(
-              roomId,
-              userId,
-              message.payload,
-            );
-
-            ws.publish(roomId, {
-              type: "PLAYBACK_UPDATED",
-              payload: newState,
-            });
-          } catch (error) {
-            ws.send({ type: "ERROR", payload: "Failed to update playback" });
+        if (result) {
+          if (result.action === "publish") {
+            ws.publish(roomId, result.message);
+          } else if (result.action === "send") {
+            ws.send(result.message);
           }
-          break;
-
-        case "SYNC_REQUEST":
-          const details = await roomService.getRoomDetails(roomId);
-          ws.send({
-            type: "SYNC_FULL_STATE",
-            payload: details,
-          });
-          break;
+        }
+      } catch (error: any) {
+        ws.send({
+          type: WsOutgoingMessageType.Error,
+          payload: error.message || "Failed to process message",
+        });
       }
     },
 
     async close(ws) {
       const { roomId } = ws.data.params;
-      const payload = ws.data.payload;
+      const userId = ws.data.payload?.sub;
 
-      const userId = payload.sub;
+      if (!userId) return;
 
-      if (userId) {
-        await roomService.leaveRoom(roomId, userId);
-        ws.unsubscribe(roomId);
+      try {
+        const messagesToPublish = await roomService.handleUserDisconnection(
+          roomId,
+          userId,
+          ws.id,
+        );
 
-        const memberCount = await roomRepo.getMemberCount(roomId);
-        ws.publish(roomId, {
-          type: "USER_LEFT",
-          payload: { userId, memberCount },
+        messagesToPublish.forEach((message) => {
+          ws.publish(roomId, message);
         });
 
-        // Host migration logic
-        const room = await roomRepo.getMetadata(roomId);
-
-        if (room && room.hostId === userId) {
-          const members = await roomRepo.getMembers(roomId);
-
-          if (members.length > 0) {
-            await roomRepo.updateHost(roomId, members[0]);
-          }
-        }
+        ws.unsubscribe(roomId);
+        console.log(`WS: User ${userId} left room ${roomId}`);
+      } catch (error: any) {
+        console.log(
+          `WS: Error during disconnection for user ${userId} in room ${roomId}. ${error}`,
+        );
       }
     },
   });

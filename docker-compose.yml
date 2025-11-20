@@ -23,9 +23,9 @@ services:
     restart: always
     ports:
       - "5066:6379"
-    volumes:
-      - redis_data:/data
+    # volumes:
+    #   - redis_data:/data
 
 volumes:
   postgres_data:
-  redis_data:
+  # redis_data:

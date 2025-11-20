@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from "uuid";
+import { WsIncomingMessage, WsIncomingMessageType, WsOutgoingMessageType } from "../domain/ws.types";
 import { RoomRepository } from "../repositories/room.repo";
 import { PlaybackState, RoomMetadata } from "../domain/room.types";
 
@@ -149,5 +150,98 @@ export class RoomService {
     );
 
     return rooms.filter((room) => room !== null);
+  }
+
+  async handleUserConnection(roomId: string, userId: string, connectionId: string) {
+    const isMember = await this.roomRepo.isMember(roomId, userId);
+    if (!isMember) {
+      await this.joinRoom(roomId, userId);
+    }
+
+    await this.roomRepo.addConnection(roomId, userId, connectionId);
+
+    const memberCount = await this.roomRepo.getMemberCount(roomId);
+
+    console.log(`WS: User ${userId} joined room ${roomId}`);
+
+    const message = {
+      type: WsOutgoingMessageType.UserJoined,
+      payload: { userId, memberCount },
+    };
+
+    return {
+      welcomeMessage: message,
+      broadcastMessage: message,
+    };
+  }
+
+  async handleUserMessage(
+    roomId: string,
+    userId: string,
+    message: WsIncomingMessage,
+  ) {
+    switch (message.type) {
+      case WsIncomingMessageType.UpdatePlayback:
+        const newState = await this.updatePlayback(
+          roomId,
+          userId,
+          message.payload,
+        );
+        return {
+          action: "publish",
+          message: {
+            type: WsOutgoingMessageType.PlaybackUpdated,
+            payload: newState,
+          },
+        };
+
+      case WsIncomingMessageType.SyncRequest:
+        const details = await this.getRoomDetails(roomId);
+        return {
+          action: "send",
+          message: {
+            type: WsOutgoingMessageType.SyncFullState,
+            payload: details,
+          },
+        };
+    }
+  }
+
+  async handleUserDisconnection(
+    roomId: string,
+    userId: string,
+    connectionId: string,
+  ) {
+    await this.roomRepo.removeConnection(roomId, userId, connectionId);
+
+    const messagesToPublish = [];
+
+    if (!(await this.roomRepo.hasActiveConnections(roomId, userId))) {
+      await this.leaveRoom(roomId, userId);
+
+      const memberCount = await this.roomRepo.getMemberCount(roomId);
+      messagesToPublish.push({
+        type: WsOutgoingMessageType.UserLeft,
+        payload: { userId, memberCount },
+      });
+
+      // Host migration logic
+      if (memberCount > 0) {
+        const room = await this.roomRepo.getMetadata(roomId);
+        if (room && room.hostId === userId) {
+          const members = await this.roomRepo.getMembers(roomId);
+          if (members.length > 0) {
+            const newHostId = members[0];
+            await this.roomRepo.updateHost(roomId, newHostId);
+            messagesToPublish.push({
+              type: WsOutgoingMessageType.HostChanged,
+              payload: { newHostId },
+            });
+          }
+        }
+      }
+    }
+
+    return messagesToPublish;
   }
 }

@@ -3,30 +3,16 @@ import { PlaybackState, RoomMetadata } from "../domain/room.types";
 
 export class RoomRepository {
   async createMetadata(roomId: string, metadata: RoomMetadata): Promise<void> {
-    await redis.hset(`room:${roomId}:metadata`, {
-      name: metadata.name,
-      hostId: metadata.hostId,
-      isPublic: String(metadata.isPublic),
-      maxParticipants: String(metadata.maxParticipants),
-      createdAt: metadata.createdAt,
-    });
-
+    await redis.set(`room:${roomId}:metadata`, JSON.stringify(metadata));
     await redis.sadd("active_rooms", roomId);
   }
 
   async getMetadata(roomId: string): Promise<RoomMetadata | null> {
-    const data = await redis.hgetall(`room:${roomId}:metadata`);
-    if (!data || Object.keys(data).length === 0) {
+    const data = await redis.get(`room:${roomId}:metadata`);
+    if (!data) {
       return null;
     }
-
-    return {
-      name: data.name,
-      hostId: data.hostId,
-      isPublic: data.isPublic === "true",
-      maxParticipants: parseInt(data.maxParticipants),
-      createdAt: data.createdAt,
-    };
+    return JSON.parse(data) as RoomMetadata;
   }
 
   async deleteMetadata(roomId: string): Promise<void> {
@@ -59,32 +45,15 @@ export class RoomRepository {
     roomId: string,
     state: PlaybackState,
   ): Promise<void> {
-    await redis.hset(`room:${roomId}:playback`, {
-      mediaUrl: state.mediaUrl,
-      mediaType: state.mediaType,
-      isPlaying: String(state.isPlaying),
-      currentTime: String(state.currentTime),
-      playbackSpeed: String(state.playbackSpeed),
-      lastUpdatedBy: state.lastUpdatedBy,
-      lastUpdated: state.lastUpdated,
-    });
+    await redis.set(`room:${roomId}:playback`, JSON.stringify(state));
   }
 
   async getPlaybackState(roomId: string): Promise<PlaybackState | null> {
-    const data = await redis.hgetall(`room:${roomId}:playback`);
-    if (!data || Object.keys(data).length === 0) {
+    const data = await redis.get(`room:${roomId}:playback`);
+    if (!data) {
       return null;
     }
-
-    return {
-      mediaUrl: data.mediaUrl,
-      mediaType: data.mediaType,
-      isPlaying: data.isPlaying === "true",
-      currentTime: parseFloat(data.currentTime),
-      playbackSpeed: parseFloat(data.playbackSpeed),
-      lastUpdatedBy: data.lastUpdatedBy,
-      lastUpdated: data.lastUpdated,
-    };
+    return JSON.parse(data) as PlaybackState;
   }
 
   async updatePlaybackState(
@@ -103,19 +72,25 @@ export class RoomRepository {
     userId: string,
     connectionId: string,
   ): Promise<void> {
-    await redis.hset(`room:${roomId}:connections`, userId, connectionId);
+    await redis.sadd(`room:${roomId}:connections:${userId}`, connectionId);
   }
 
-  async removeConnection(roomId: string, userId: string): Promise<void> {
-    await redis.hdel(`room:${roomId}:connections`, userId);
+  async removeConnection(
+    roomId: string,
+    userId: string,
+    connectionId: string,
+  ): Promise<void> {
+    await redis.srem(`room:${roomId}:connections:${userId}`, connectionId);
+
+    // If no more connections for this user, delete the set
+    const count = await redis.scard(`room:${roomId}:connections:${userId}`);
+    if (count === 0) {
+      await redis.del(`room:${roomId}:connections:${userId}`);
+    }
   }
 
-  async getConnections(roomId: string): Promise<Record<string, string>> {
-    return await redis.hgetall(`room:${roomId}:connections`);
-  }
-
-  async deleteConnections(roomId: string): Promise<void> {
-    await redis.del(`room:${roomId}:connections`);
+  async hasActiveConnections(roomId: string, userId: string): Promise<boolean> {
+    return (await redis.scard(`room:${roomId}:connections:${userId}`)) > 0;
   }
 
   async getActiveRooms(): Promise<string[]> {
@@ -126,7 +101,6 @@ export class RoomRepository {
     await this.deleteMetadata(roomId);
     await redis.del(`room:${roomId}:members`);
     await this.deletePlaybackState(roomId);
-    await this.deleteConnections(roomId);
   }
 
   async updateHost(roomId: string, newHostId: string): Promise<void> {
@@ -135,12 +109,7 @@ export class RoomRepository {
       throw new Error("Room not found");
     }
 
-    await redis.hset(`room:${roomId}:metadata`, {
-      name: metadata.name,
-      hostId: newHostId,
-      isPublic: String(metadata.isPublic),
-      maxParticipants: String(metadata.maxParticipants),
-      createdAt: metadata.createdAt,
-    });
+    metadata.hostId = newHostId;
+    await this.createMetadata(roomId, metadata);
   }
 }

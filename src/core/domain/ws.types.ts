@@ -1,13 +1,36 @@
-export type WsMessageType = "UPDATE_PLAYBACK" | "SYNC_REQUEST";
+export enum WsIncomingMessageType {
+  UpdatePlayback = "UPDATE_PLAYBACK",
+  SyncRequest = "SYNC_REQUEST",
+}
+
+export enum WsOutgoingMessageType {
+  PlaybackUpdated = "PLAYBACK_UPDATED",
+  UserJoined = "USER_JOINED",
+  UserLeft = "USER_LEFT",
+  HostChanged = "HOST_CHANGED",
+  SyncFullState = "SYNC_FULL_STATE",
+  Error = "ERROR",
+}
 
 export type WsIncomingMessage = {
-  type: WsMessageType;
+  type: WsIncomingMessageType;
   payload?: any;
 };
 
 export type WsOutgoingMessage =
-  | { type: "PLAYBACK_UPDATED"; payload: any }
-  | { type: "USER_JOINED"; payload: { userId: string; memberCount: number } }
-  | { type: "USER_LEFT"; payload: { userId: string; memberCount: number } }
-  | { type: "SYNC_FULL_STATE"; payload: any }
-  | { type: "ERROR"; payload: string };
+  | { type: WsOutgoingMessageType.PlaybackUpdated; payload: any }
+  | {
+      type: WsOutgoingMessageType.UserJoined;
+      payload: { userId: string; memberCount: number };
+    }
+  | {
+      type: WsOutgoingMessageType.UserLeft;
+      payload: { userId: string; memberCount: number };
+    }
+  | {
+      type: WsOutgoingMessageType.HostChanged;
+      payload: { newHostId: string };
+    }
+  | { type: WsOutgoingMessageType.SyncFullState; payload: any }
+  | { type: WsOutgoingMessageType.Error; payload: string };
+

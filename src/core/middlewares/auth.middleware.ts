@@ -15,10 +15,14 @@ export const authMiddleware = new Elysia()
         const token = cookie.session?.value as string;
 
         if (!token) {
-          return status("Unauthorized");
+          return status(401, "Missing authentication token");
         }
 
-        const payload = (await jwt.verify(token)) as Claim;
+        const payload = (await jwt.verify(token)) as Claim | false;
+        if (!payload) {
+          return status(401, "Invalid or expired token");
+        }
+
         return {
           payload: payload,
         };
