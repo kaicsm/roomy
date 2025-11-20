@@ -1,10 +1,10 @@
 import { config } from "dotenv";
 import Elysia from "elysia";
 import openapi from "@elysiajs/openapi";
-import { connectRedis } from "./infra/cache/redis.config";
 import { AuthController } from "./core/controllers/auth.controller";
 import { RoomController } from "./core/controllers/room.controller";
 import { UserController } from "./core/controllers/user.controller";
+import { redis } from "./infra/cache/redis.config";
 
 config();
 
@@ -29,12 +29,7 @@ if (missingEnvVars.length > 0) {
 
 const PORT = process.env.PORT!;
 
-try {
-  await connectRedis();
-} catch (error) {
-  console.error("Failed to connect to Redis:", error);
-  process.exit(1);
-}
+await redis.connect();
 
 new Elysia({ prefix: "/api" })
   .use(

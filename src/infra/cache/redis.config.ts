@@ -1,20 +1,5 @@
-import { createClient } from "redis";
+import { RedisClient } from "bun";
 
-export const redis = createClient({
-  url: process.env.REDIS_URL!,
+export const redis = new RedisClient(process.env.REDIS_URL!, {
+  autoReconnect: false,
 });
-
-redis.on("error", (err) => console.error("Redis Client Error", err));
-redis.on("connect", () => console.log("Redis connected!"));
-
-export async function connectRedis() {
-  if (!redis.isOpen) {
-    await redis.connect();
-  }
-}
-
-export async function disconnectRedis() {
-  if (redis.isOpen) {
-    redis.destroy();
-  }
-}
