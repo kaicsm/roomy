@@ -1,45 +1,30 @@
 import Elysia, { t } from "elysia";
-import jwt from "@elysiajs/jwt";
 import { RoomRepository } from "../repositories/room.repo";
 import { RoomService } from "../services/room.service";
 import type { WsIncomingMessage } from "../domain/ws.types";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const roomRepo = new RoomRepository();
 const roomService = new RoomService(roomRepo);
 
-export const RoomController = new Elysia({ 
-  prefix: "/rooms",
-  cookie: {
-    secrets: process.env.COOKIE_SECRET!,
-    sign: ["session"],
-  },
- })
-  .use(
-    jwt({
-      name: "jwt",
-      secret: process.env.JWT_SECRET!,
-    }),
-  )
+export const RoomController = new Elysia({ prefix: "/rooms" })
+  .use(authMiddleware)
 
-  .get("/", async () => {
-    return roomService.listActiveRooms();
-  })
+  .get(
+    "/",
+    async () => {
+      return roomService.listActiveRooms();
+    },
+    {
+      auth: true,
+    },
+  )
 
   .post(
     "/",
-    async ({ body, headers, jwt, cookie: { session } }) => {
-      let token = headers.authorization?.replace("Bearer ", "");
-      if (!token && session?.value) {
-        token = session.value as string;
-      }
-
-      if (!token) throw new Error("Token not provided");
-
-      const payload = await jwt.verify(token);
-      if (!payload) throw new Error("Invalid token");
-
+    async ({ body, payload }) => {
       return roomService.createRoom(
-        payload.sub as string,
+        payload.sub,
         body.name,
         body.isPublic,
         body.maxParticipants,
@@ -51,12 +36,19 @@ export const RoomController = new Elysia({
         isPublic: t.Optional(t.Boolean()),
         maxParticipants: t.Optional(t.Number({ minimum: 2, maximum: 50 })),
       }),
+      auth: true,
     },
   )
 
-  .get("/:roomId", async ({ params }) => {
-    return roomService.getRoomDetails(params.roomId);
-  })
+  .get(
+    "/:roomId",
+    async ({ params }) => {
+      return roomService.getRoomDetails(params.roomId);
+    },
+    {
+      auth: true,
+    },
+  )
 
   .ws("/:roomId/ws", {
     body: t.Object({
@@ -64,28 +56,20 @@ export const RoomController = new Elysia({
       payload: t.Optional(t.Any()),
     }),
 
-    query: t.Object({
-      token: t.String(),
-    }),
+    auth: true,
 
     async open(ws) {
       const { roomId } = ws.data.params;
-      const { token } = ws.data.query;
+      const payload = ws.data.payload;
 
-      const payload = await ws.data.jwt.verify(token);
-      if (!payload) {
-        ws.send({ type: "ERROR", payload: "Invalid Token" });
-        ws.close();
-        return;
-      }
-      const userId = payload.sub as string;
+      const userId = payload.sub;
 
       try {
         const isMember = await roomRepo.isMember(roomId, userId);
         if (!isMember) {
           await roomService.joinRoom(roomId, userId);
         }
-        
+
         ws.subscribe(roomId);
 
         const memberCount = await roomRepo.getMemberCount(roomId);
@@ -105,11 +89,9 @@ export const RoomController = new Elysia({
 
     async message(ws, message: WsIncomingMessage) {
       const { roomId } = ws.data.params;
-      const { token } = ws.data.query;
+      const payload = ws.data.payload;
 
-      const payload = await ws.data.jwt.verify(token);
-      if (!payload) return;
-      const userId = payload.sub as string;
+      const userId = payload.sub;
 
       switch (message.type) {
         case "UPDATE_PLAYBACK":
@@ -141,10 +123,9 @@ export const RoomController = new Elysia({
 
     async close(ws) {
       const { roomId } = ws.data.params;
-      const { token } = ws.data.query;
-      const payload = await ws.data.jwt.verify(token);
-      if (!payload) return;
-      const userId = payload.sub as string;
+      const payload = ws.data.payload;
+
+      const userId = payload.sub;
 
       if (userId) {
         await roomService.leaveRoom(roomId, userId);
@@ -158,10 +139,10 @@ export const RoomController = new Elysia({
 
         // Host migration logic
         const room = await roomRepo.getMetadata(roomId);
-        
+
         if (room && room.hostId === userId) {
           const members = await roomRepo.getMembers(roomId);
-          
+
           if (members.length > 0) {
             await roomRepo.updateHost(roomId, members[0]);
           }

@@ -1,7 +1,8 @@
-import Elysia, { t } from "elysia";
+import Elysia, { Cookie, t } from "elysia";
 import jwt from "@elysiajs/jwt";
 import { UserRepository } from "../repositories/user.repo";
 import { AuthService } from "../services/auth.service";
+import { SafeUser } from "../domain/user.types";
 
 const userRepo = new UserRepository();
 const authService = new AuthService(userRepo);
@@ -19,21 +20,28 @@ export const AuthController = new Elysia({
       secret: process.env.JWT_SECRET!,
     }),
   )
-  .post(
-    "/login",
-    async ({ body, jwt, cookie: { session } }) => {
-      const user = await authService.login(body);
+  .decorate(
+    "saveSessionCookie",
+    async (jwt: any, user: SafeUser, session: Cookie<unknown>) => {
       const token = await jwt.sign({ sub: user.id, email: user.email });
 
-      session.value = token;
       session.set({
+        value: token,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "lax",
         maxAge: 60 * 60 * 24 * 7, // 7 days
+        path: "/",
       });
+    },
+  )
+  .post(
+    "/login",
+    async ({ body, jwt, cookie: { session }, saveSessionCookie }) => {
+      const user = await authService.login(body);
+      await saveSessionCookie(jwt, user, session);
 
-      return { user, token };
+      return { user };
     },
     {
       body: t.Object({
@@ -48,19 +56,11 @@ export const AuthController = new Elysia({
   )
   .post(
     "/register",
-    async ({ body, jwt, cookie: { session } }) => {
+    async ({ body, jwt, cookie: { session }, saveSessionCookie }) => {
       const user = await authService.register(body);
-      const token = await jwt.sign({ sub: user.id, email: user.email });
+      await saveSessionCookie(jwt, user, session);
 
-      session.value = token;
-      session.set({
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        maxAge: 60 * 60 * 24 * 7, // 7 days
-      });
-
-      return { user, token };
+      return { user };
     },
     {
       body: t.Object({

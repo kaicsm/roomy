@@ -1,10 +1,12 @@
 import Elysia, { t } from "elysia";
 import { UserRepository } from "../repositories/user.repo";
 import { SafeUser } from "../domain/user.types";
+import { authMiddleware } from "../middlewares/auth.middleware";
 
 const userRepo = new UserRepository();
 
 export const UserController = new Elysia({ prefix: "/users" })
+  .use(authMiddleware)
   .get(
     "/:id",
     async ({ params }) => {
@@ -20,6 +22,7 @@ export const UserController = new Elysia({ prefix: "/users" })
       params: t.Object({
         id: t.String(),
       }),
+      auth: true,
     },
   )
   .get(
@@ -45,6 +48,6 @@ export const UserController = new Elysia({ prefix: "/users" })
       query: t.Object({
         ids: t.Optional(t.String()),
       }),
+      auth: true,
     },
   );
-
