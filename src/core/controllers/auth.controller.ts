@@ -4,9 +4,6 @@ import { UserRepository } from "../repositories/user.repo";
 import { AuthService } from "../services/auth.service";
 import { SafeUser } from "../domain/user.types";
 
-const userRepo = new UserRepository();
-const authService = new AuthService(userRepo);
-
 export const AuthController = new Elysia({
   prefix: "/auth",
   cookie: {
@@ -14,6 +11,7 @@ export const AuthController = new Elysia({
     sign: ["session"],
   },
 })
+  .decorate("authService", new AuthService(new UserRepository()))
   .use(
     jwt({
       name: "jwt",
@@ -37,7 +35,13 @@ export const AuthController = new Elysia({
   )
   .post(
     "/login",
-    async ({ body, jwt, cookie: { authToken }, saveSessionCookie }) => {
+    async ({
+      body,
+      jwt,
+      cookie: { authToken },
+      saveSessionCookie,
+      authService,
+    }) => {
       const user = await authService.login(body);
       await saveSessionCookie(jwt, user, authToken);
 
@@ -56,7 +60,13 @@ export const AuthController = new Elysia({
   )
   .post(
     "/register",
-    async ({ body, jwt, cookie: { authToken }, saveSessionCookie }) => {
+    async ({
+      body,
+      jwt,
+      cookie: { authToken },
+      saveSessionCookie,
+      authService,
+    }) => {
       const user = await authService.register(body);
       await saveSessionCookie(jwt, user, authToken);
 

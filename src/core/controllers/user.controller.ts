@@ -3,14 +3,12 @@ import { UserRepository } from "../repositories/user.repo";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { UserService } from "../services/user.service";
 
-const userRepo = new UserRepository();
-const userService = new UserService(userRepo);
-
 export const UserController = new Elysia({ prefix: "/users" })
+  .decorate("userService", new UserService(new UserRepository()))
   .use(authMiddleware)
   .get(
     "/:id",
-    async ({ params }) => {
+    async ({ params, userService }) => {
       return await userService.findUserById(params.id);
     },
     {
@@ -22,7 +20,7 @@ export const UserController = new Elysia({ prefix: "/users" })
   )
   .get(
     "/",
-    async ({ query }) => {
+    async ({ query, userService }) => {
       return await userService.findUsersByIds(query.ids!);
     },
     {

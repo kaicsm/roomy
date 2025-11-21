@@ -214,6 +214,10 @@ export class RoomService {
             payload: details,
           },
         };
+
+      case WsIncomingMessageType.Heartbeat:
+        await this.roomRepo.refreshRoomTTL(roomId);
+        return null;
     }
   }
 

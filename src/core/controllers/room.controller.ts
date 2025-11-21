@@ -8,15 +8,13 @@ import {
 } from "../domain/ws.types";
 import { authMiddleware } from "../middlewares/auth.middleware";
 
-const roomRepo = new RoomRepository();
-const roomService = new RoomService(roomRepo);
-
 export const RoomController = new Elysia({ prefix: "/rooms" })
+  .decorate("roomService", new RoomService(new RoomRepository()))
   .use(authMiddleware)
 
   .get(
     "/",
-    async () => {
+    async ({ roomService }) => {
       return roomService.listActiveRooms();
     },
     {
@@ -26,7 +24,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .post(
     "/",
-    async ({ body, payload }) => {
+    async ({ body, payload, roomService }) => {
       return roomService.createRoom(
         payload.sub,
         body.name,
@@ -46,7 +44,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .get(
     "/:roomId",
-    async ({ params }: { params: { roomId: string } }) => {
+    async ({ params, roomService }) => {
       return roomService.getRoomDetails(params.roomId);
     },
     {
@@ -71,6 +69,9 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
       t.Object({
         type: t.Literal(WsIncomingMessageType.SyncRequest),
       }),
+      t.Object({
+        type: t.Literal(WsIncomingMessageType.Heartbeat),
+      }),
     ]),
 
     auth: true,
@@ -78,6 +79,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
     async open(ws) {
       const { roomId } = ws.data.params;
       const userId = ws.data.payload.sub;
+      const roomService = ws.data.roomService;
 
       try {
         const message = await roomService.handleUserConnection(
@@ -104,6 +106,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
     async message(ws, message: WsIncomingMessage) {
       const { roomId } = ws.data.params;
       const userId = ws.data.payload.sub;
+      const roomService = ws.data.roomService;
 
       try {
         const result = await roomService.handleUserMessage(
@@ -130,6 +133,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
     async close(ws) {
       const { roomId } = ws.data.params;
       const userId = ws.data.payload.sub;
+      const roomService = ws.data.roomService;
 
       try {
         const messagesToPublish = await roomService.handleUserDisconnection(

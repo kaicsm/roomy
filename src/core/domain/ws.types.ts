@@ -7,6 +7,7 @@ import {
 export enum WsIncomingMessageType {
   UpdatePlayback = "UPDATE_PLAYBACK",
   SyncRequest = "SYNC_REQUEST",
+  Heartbeat = "HEARTBEAT",
 }
 
 export enum WsOutgoingMessageType {
@@ -23,7 +24,8 @@ export type WsIncomingMessage =
       type: WsIncomingMessageType.UpdatePlayback;
       payload: ClientPlaybackPayload;
     }
-  | { type: WsIncomingMessageType.SyncRequest; payload?: never };
+  | { type: WsIncomingMessageType.SyncRequest; payload?: never }
+  | { type: WsIncomingMessageType.Heartbeat; payload?: never };
 
 export type WsOutgoingMessage =
   | { type: WsOutgoingMessageType.PlaybackUpdated; payload: PlaybackState }
