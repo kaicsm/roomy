@@ -15,3 +15,13 @@ export type PlaybackState = {
   lastUpdatedBy: string;
   lastUpdated: string;
 };
+
+export type ClientPlaybackPayload = Partial<
+  Omit<PlaybackState, "lastUpdatedBy" | "lastUpdated">
+>;
+
+export type RoomFullStatePayload = RoomMetadata & {
+  roomId: string;
+  members: string[];
+  playbackState: PlaybackState | null;
+};

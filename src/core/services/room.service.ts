@@ -1,7 +1,16 @@
 import { v4 as uuidv4 } from "uuid";
-import { WsIncomingMessage, WsIncomingMessageType, WsOutgoingMessageType } from "../domain/ws.types";
+import {
+  WsIncomingMessage,
+  WsIncomingMessageType,
+  WsOutgoingMessageType,
+} from "../domain/ws.types";
 import { RoomRepository } from "../repositories/room.repo";
-import { PlaybackState, RoomMetadata } from "../domain/room.types";
+import {
+  ClientPlaybackPayload,
+  PlaybackState,
+  RoomFullStatePayload,
+  RoomMetadata,
+} from "../domain/room.types";
 
 export class RoomService {
   constructor(private roomRepo: RoomRepository) {}
@@ -40,7 +49,7 @@ export class RoomService {
     return { roomId, ...metadata };
   }
 
-  async getRoomDetails(roomId: string) {
+  async getRoomDetails(roomId: string): Promise<RoomFullStatePayload> {
     const metadata = await this.roomRepo.getMetadata(roomId);
     if (!metadata) {
       throw new Error("Room not found");
@@ -49,12 +58,14 @@ export class RoomService {
     const members = await this.roomRepo.getMembers(roomId);
     const playbackState = await this.roomRepo.getPlaybackState(roomId);
 
-    return {
+    const state: RoomFullStatePayload = {
       roomId,
-      ...metadata,
       members,
       playbackState,
+      ...metadata,
     };
+
+    return state;
   }
 
   async joinRoom(roomId: string, userId: string) {
@@ -99,8 +110,8 @@ export class RoomService {
   async updatePlayback(
     roomId: string,
     userId: string,
-    updates: Partial<Omit<PlaybackState, "lastUpdatedBy" | "lastUpdated">>,
-  ) {
+    updates: ClientPlaybackPayload,
+  ): Promise<PlaybackState> {
     const isMember = await this.roomRepo.isMember(roomId, userId);
     if (!isMember) {
       throw new Error("You are not in this room");
@@ -152,7 +163,11 @@ export class RoomService {
     return rooms.filter((room) => room !== null);
   }
 
-  async handleUserConnection(roomId: string, userId: string, connectionId: string) {
+  async handleUserConnection(
+    roomId: string,
+    userId: string,
+    connectionId: string,
+  ) {
     const isMember = await this.roomRepo.isMember(roomId, userId);
     if (!isMember) {
       await this.joinRoom(roomId, userId);
@@ -164,14 +179,9 @@ export class RoomService {
 
     console.log(`WS: User ${userId} joined room ${roomId}`);
 
-    const message = {
+    return {
       type: WsOutgoingMessageType.UserJoined,
       payload: { userId, memberCount },
-    };
-
-    return {
-      welcomeMessage: message,
-      broadcastMessage: message,
     };
   }
 

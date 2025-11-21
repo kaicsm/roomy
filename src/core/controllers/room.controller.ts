@@ -26,13 +26,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
   .post(
     "/",
-    async ({
-      body,
-      payload,
-    }: {
-      body: { name: string; isPublic?: boolean; maxParticipants?: number };
-      payload: { sub: string };
-    }) => {
+    async ({ body, payload }) => {
       return roomService.createRoom(
         payload.sub,
         body.name,
@@ -61,10 +55,23 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
   )
 
   .ws("/:roomId/ws", {
-    body: t.Object({
-      type: t.Enum(WsIncomingMessageType),
-      payload: t.Optional(t.Any()),
-    }),
+    body: t.Union([
+      t.Object({
+        type: t.Literal(WsIncomingMessageType.UpdatePlayback),
+        payload: t.Partial(
+          t.Object({
+            mediaUrl: t.String(),
+            mediaType: t.String(),
+            isPlaying: t.Boolean(),
+            currentTime: t.Number(),
+            playbackSpeed: t.Number(),
+          }),
+        ),
+      }),
+      t.Object({
+        type: t.Literal(WsIncomingMessageType.SyncRequest),
+      }),
+    ]),
 
     auth: true,
 
@@ -73,14 +80,16 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
       const userId = ws.data.payload.sub;
 
       try {
-        const { welcomeMessage, broadcastMessage } =
-          await roomService.handleUserConnection(roomId, userId, ws.id);
+        const message = await roomService.handleUserConnection(
+          roomId,
+          userId,
+          ws.id,
+        );
 
         ws.subscribe(roomId);
 
-        ws.send(welcomeMessage);
-
-        ws.publish(roomId, broadcastMessage);
+        ws.send(message);
+        ws.publish(roomId, message);
       } catch (e: any) {
         ws.send({
           type: WsOutgoingMessageType.Error,
@@ -120,9 +129,7 @@ export const RoomController = new Elysia({ prefix: "/rooms" })
 
     async close(ws) {
       const { roomId } = ws.data.params;
-      const userId = ws.data.payload?.sub;
-
-      if (!userId) return;
+      const userId = ws.data.payload.sub;
 
       try {
         const messagesToPublish = await roomService.handleUserDisconnection(

@@ -22,10 +22,10 @@ export const AuthController = new Elysia({
   )
   .decorate(
     "saveSessionCookie",
-    async (jwt: any, user: SafeUser, session: Cookie<unknown>) => {
+    async (jwt: any, user: SafeUser, authToken: Cookie<unknown>) => {
       const token = await jwt.sign({ sub: user.id, email: user.email });
 
-      session.set({
+      authToken.set({
         value: token,
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -37,9 +37,9 @@ export const AuthController = new Elysia({
   )
   .post(
     "/login",
-    async ({ body, jwt, cookie: { session }, saveSessionCookie }) => {
+    async ({ body, jwt, cookie: { authToken }, saveSessionCookie }) => {
       const user = await authService.login(body);
-      await saveSessionCookie(jwt, user, session);
+      await saveSessionCookie(jwt, user, authToken);
 
       return { user };
     },
@@ -56,9 +56,9 @@ export const AuthController = new Elysia({
   )
   .post(
     "/register",
-    async ({ body, jwt, cookie: { session }, saveSessionCookie }) => {
+    async ({ body, jwt, cookie: { authToken }, saveSessionCookie }) => {
       const user = await authService.register(body);
-      await saveSessionCookie(jwt, user, session);
+      await saveSessionCookie(jwt, user, authToken);
 
       return { user };
     },

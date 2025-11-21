@@ -10,7 +10,7 @@ export const UserController = new Elysia({ prefix: "/users" })
   .use(authMiddleware)
   .get(
     "/:id",
-    async ({ params }: { params: { id: string } }) => {
+    async ({ params }) => {
       return await userService.findUserById(params.id);
     },
     {
@@ -22,7 +22,7 @@ export const UserController = new Elysia({ prefix: "/users" })
   )
   .get(
     "/",
-    async ({ query }: { query: { ids?: string } }) => {
+    async ({ query }) => {
       return await userService.findUsersByIds(query.ids!);
     },
     {

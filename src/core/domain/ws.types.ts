@@ -1,3 +1,9 @@
+import {
+  ClientPlaybackPayload,
+  PlaybackState,
+  RoomFullStatePayload,
+} from "./room.types";
+
 export enum WsIncomingMessageType {
   UpdatePlayback = "UPDATE_PLAYBACK",
   SyncRequest = "SYNC_REQUEST",
@@ -12,13 +18,15 @@ export enum WsOutgoingMessageType {
   Error = "ERROR",
 }
 
-export type WsIncomingMessage = {
-  type: WsIncomingMessageType;
-  payload?: any;
-};
+export type WsIncomingMessage =
+  | {
+      type: WsIncomingMessageType.UpdatePlayback;
+      payload: ClientPlaybackPayload;
+    }
+  | { type: WsIncomingMessageType.SyncRequest; payload?: never };
 
 export type WsOutgoingMessage =
-  | { type: WsOutgoingMessageType.PlaybackUpdated; payload: any }
+  | { type: WsOutgoingMessageType.PlaybackUpdated; payload: PlaybackState }
   | {
       type: WsOutgoingMessageType.UserJoined;
       payload: { userId: string; memberCount: number };
@@ -31,6 +39,5 @@ export type WsOutgoingMessage =
       type: WsOutgoingMessageType.HostChanged;
       payload: { newHostId: string };
     }
-  | { type: WsOutgoingMessageType.SyncFullState; payload: any }
+  | { type: WsOutgoingMessageType.SyncFullState; payload: RoomFullStatePayload }
   | { type: WsOutgoingMessageType.Error; payload: string };
-
