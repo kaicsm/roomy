@@ -1,4 +1,4 @@
-import { SafeUser } from "../domain/user.types";
+import { type SafeUser } from "../domain/user.types";
 import { UserRepository } from "../repositories/user.repo";
 
 export class UserService {

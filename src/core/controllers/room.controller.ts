@@ -2,7 +2,7 @@ import Elysia, { t } from "elysia";
 import { RoomRepository } from "../repositories/room.repo";
 import { RoomService } from "../services/room.service";
 import {
-  WsIncomingMessage,
+  type WsIncomingMessage,
   WsIncomingMessageType,
   WsOutgoingMessageType,
 } from "../domain/ws.types";

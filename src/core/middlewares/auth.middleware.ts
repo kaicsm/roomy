@@ -1,6 +1,6 @@
 import jwt from "@elysiajs/jwt";
 import Elysia from "elysia";
-import { Claim } from "../domain/claim.types";
+import { type Claim } from "../domain/claim.types";
 
 export const authMiddleware = new Elysia()
   .use(
@@ -20,9 +20,7 @@ export const authMiddleware = new Elysia()
             | string
             | undefined;
           if (rawAuth) {
-            token = rawAuth.startsWith("Bearer ")
-              ? rawAuth.slice(7)
-              : rawAuth;
+            token = rawAuth.startsWith("Bearer ") ? rawAuth.slice(7) : rawAuth;
           }
         }
 

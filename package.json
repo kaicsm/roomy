@@ -1,28 +1,28 @@
 {
-    "name": "shogun",
-    "version": "1.0.50",
-    "scripts": {
-        "test": "echo \"Error: no test specified\" && exit 1",
-        "dev": "bun run --watch ."
-    },
-    "dependencies": {
-        "@elysiajs/cors": "^1.4.0",
-        "@elysiajs/jwt": "^1.4.0",
-        "@elysiajs/openapi": "^1.4.11",
-        "@elysiajs/websocket": "^0.2.8",
-        "dotenv": "^17.2.3",
-        "drizzle-orm": "^0.44.7",
-        "elysia": "latest",
-        "pg": "^8.16.3",
-        "uuid": "^13.0.0"
-    },
-    "devDependencies": {
-        "@types/bun": "1.3.2",
-        "@types/pg": "^8.15.6",
-        "@types/uuid": "^11.0.0",
-        "bun-types": "latest",
-        "drizzle-kit": "^0.31.7",
-        "tsx": "^4.20.6"
-    },
-    "module": "src/index.ts"
+  "name": "shogun",
+  "version": "1.0.50",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "bun run --watch ."
+  },
+  "dependencies": {
+    "@elysiajs/cors": "^1.4.0",
+    "@elysiajs/jwt": "^1.4.0",
+    "@elysiajs/openapi": "^1.4.11",
+    "@elysiajs/websocket": "^0.2.8",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.44.7",
+    "elysia": "latest",
+    "pg": "^8.16.3",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "1.3.2",
+    "@types/pg": "^8.15.6",
+    "@types/uuid": "^11.0.0",
+    "bun-types": "latest",
+    "drizzle-kit": "^0.31.7",
+    "tsx": "^4.20.6"
+  },
+  "module": "src/index.ts"
 }

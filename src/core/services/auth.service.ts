@@ -1,5 +1,5 @@
 import { UserRepository } from "../repositories/user.repo";
-import { SafeUser } from "../domain/user.types";
+import { type SafeUser } from "../domain/user.types";
 
 export class AuthService {
   private cost = 10;

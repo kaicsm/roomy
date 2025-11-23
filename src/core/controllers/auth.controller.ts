@@ -2,7 +2,7 @@ import Elysia, { Cookie, t } from "elysia";
 import jwt from "@elysiajs/jwt";
 import { UserRepository } from "../repositories/user.repo";
 import { AuthService } from "../services/auth.service";
-import { SafeUser } from "../domain/user.types";
+import { type SafeUser } from "../domain/user.types";
 
 export const AuthController = new Elysia({
   prefix: "/auth",
@@ -19,7 +19,7 @@ export const AuthController = new Elysia({
     }),
   )
   .decorate(
-    "saveSessionCookie",
+    "saveAuthCookie",
     async (jwt: any, user: SafeUser, authToken: Cookie<unknown>) => {
       const token = await jwt.sign({ sub: user.id, email: user.email });
 
@@ -39,11 +39,11 @@ export const AuthController = new Elysia({
       body,
       jwt,
       cookie: { authToken },
-      saveSessionCookie,
+      saveAuthCookie,
       authService,
     }) => {
       const user = await authService.login(body);
-      await saveSessionCookie(jwt, user, authToken);
+      await saveAuthCookie(jwt, user, authToken!);
 
       return { user };
     },
@@ -64,11 +64,11 @@ export const AuthController = new Elysia({
       body,
       jwt,
       cookie: { authToken },
-      saveSessionCookie,
+      saveAuthCookie,
       authService,
     }) => {
       const user = await authService.register(body);
-      await saveSessionCookie(jwt, user, authToken);
+      await saveAuthCookie(jwt, user, authToken!);
 
       return { user };
     },

@@ -1,5 +1,5 @@
 import { redis } from "../../infra/cache/redis.config";
-import { PlaybackState, RoomMetadata } from "../domain/room.types";
+import type { PlaybackState, RoomMetadata } from "../domain/room.types";
 
 export class RoomRepository {
   private ROOM_TTL_SECONDS = 3600;

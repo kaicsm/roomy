@@ -1,11 +1,11 @@
 import { v4 as uuidv4 } from "uuid";
 import {
-  WsIncomingMessage,
+  type WsIncomingMessage,
   WsIncomingMessageType,
   WsOutgoingMessageType,
 } from "../domain/ws.types";
 import { RoomRepository } from "../repositories/room.repo";
-import {
+import type {
   ClientPlaybackPayload,
   PlaybackState,
   RoomFullStatePayload,
@@ -13,7 +13,7 @@ import {
 } from "../domain/room.types";
 
 export class RoomService {
-  constructor(private roomRepo: RoomRepository) {}
+  constructor(private roomRepo: RoomRepository) { }
 
   async createRoom(
     hostId: string,
@@ -245,7 +245,7 @@ export class RoomService {
         if (room && room.hostId === userId) {
           const members = await this.roomRepo.getMembers(roomId);
           if (members.length > 0) {
-            const newHostId = members[0];
+            const newHostId = members[0]!;
             await this.roomRepo.updateHost(roomId, newHostId);
             messagesToPublish.push({
               type: WsOutgoingMessageType.HostChanged,

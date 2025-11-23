@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../../infra/database/postgres.config";
 import { usersTable } from "../../infra/database/schema";
-import { User } from "../domain/user.types";
+import { type User } from "../domain/user.types";
 
 export class UserRepository {
   async create(data: {
@@ -18,7 +18,7 @@ export class UserRepository {
       })
       .returning();
 
-    return user;
+    return user!;
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -53,7 +53,7 @@ export class UserRepository {
 
   async findByIds(ids: string[]): Promise<User[]> {
     if (ids.length === 0) return [];
-    
+
     const users = await db
       .select()
       .from(usersTable)
