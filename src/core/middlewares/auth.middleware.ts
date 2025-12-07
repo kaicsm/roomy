@@ -14,8 +14,8 @@ export const authMiddleware = new Elysia()
       async resolve({ jwt, cookie, status, headers, query }) {
         let token: string | undefined;
 
-        if (query?.token) {
-          token = query.token as string;
+        if (query?.authToken) {
+          token = query.authToken as string;
         } else if (cookie.authToken?.value) {
           token = cookie.authToken.value as string;
         } else {

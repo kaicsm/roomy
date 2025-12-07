@@ -45,7 +45,7 @@ export const AuthController = new Elysia({
       const user = await authService.login(body);
       await saveAuthCookie(jwt, user, authToken!);
 
-      return { user };
+      return user;
     },
     {
       body: t.Object({
@@ -70,7 +70,7 @@ export const AuthController = new Elysia({
       const user = await authService.register(body);
       await saveAuthCookie(jwt, user, authToken!);
 
-      return { user };
+      return user;
     },
     {
       body: t.Object({
